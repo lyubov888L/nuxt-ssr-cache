@@ -1,7 +1,7 @@
 const path = require('path');
 const {serialize, deserialize} = require('./serializer');
 const makeCache = require('./cache-builders');
-
+const useragent = require('express-useragent')
 
 function cleanIfNewVersion(cache, version) {
     if (!version) return;
@@ -35,6 +35,11 @@ module.exports = function cacheRenderer(nuxt, config) {
         return;
     }
 
+    var isDev = config.cache.isDev !== undefined ? config.cache.isDev : process.env.NODE_ENV === 'production';
+    if (!isDev) {
+      return;
+    }
+
     function isCacheFriendly(path) {
         return config.cache.pages.some(pat =>
             pat instanceof RegExp
@@ -50,11 +55,12 @@ module.exports = function cacheRenderer(nuxt, config) {
     const renderer = nuxt.renderer;
     const renderRoute = renderer.renderRoute.bind(renderer);
     renderer.renderRoute = function(route, context) {
-        const hostname = context.req.hostname || context.req.host;
+        const hostname = context.req.hostname || context.req.host || context.req.headers['host'];
+        const userAgentString = context.req.headers['user-agent'];
+        const isBot = useragent.parse(userAgentString).isBot
     	const cacheKey = config.cache.useHostPrefix === true && hostname
-    	                ? path.join(hostname, route)
+    	                ? path.join(hostname, route, '__', String(isBot))
                         : route;
-
         // hopefully cache reset is finished up to this point.
         tryStoreVersion(cache, currentVersion);
 
